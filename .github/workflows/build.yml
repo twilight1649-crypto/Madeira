@@ -25,18 +25,14 @@ jobs:
 
       - name: Prepare Homebrew Dependencies
         run: |
-          # Install modern bison and flex
           brew install bison flex
           
-          # Get actual paths (handles both /opt/homebrew and /usr/local)
           BISON_BIN="$(brew --prefix bison)/bin"
           FLEX_BIN="$(brew --prefix flex)/bin"
           
-          # Persist to GitHub PATH for all subsequent steps
           echo "$BISON_BIN" >> "$GITHUB_PATH"
           echo "$FLEX_BIN" >> "$GITHUB_PATH"
           
-          # Verify the correct versions are active
           export PATH="$BISON_BIN:$FLEX_BIN:$PATH"
           bison --version
           flex --version
@@ -45,19 +41,19 @@ jobs:
         env:
           JOBS: 4
         run: |
-          # Re-declare paths locally to ensure the script's sub-shells inherit them
           BISON_BIN="$(brew --prefix bison)/bin"
           FLEX_BIN="$(brew --prefix flex)/bin"
           export PATH="$BISON_BIN:$FLEX_BIN:$PATH"
           
-          # Force Wine autotools to use these exact binaries
           export BISON="$BISON_BIN/bison"
           export YACC="$BISON_BIN/bison -y"
           export LEX="$FLEX_BIN/flex"
           
-          chmod +x scripts/build-ipa.sh
+          # THE FIX: Tell the linker to dynamically look up ONLY the 3 missing iOS functions 
+          # without breaking the rest of the autotools configure script.
+          export LDFLAGS="-Wl,-U,_ios_srcwatch_arm -Wl,-U,_ios_srcwatch_arm_geom -Wl,-U,_winios_dump_srcbits"
           
-          # Execute the official build script
+          chmod +x scripts/build-ipa.sh
           ./scripts/build-ipa.sh
 
       - name: Verify & Package IPA
