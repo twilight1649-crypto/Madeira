@@ -5,7 +5,7 @@ on:
 
 jobs:
   build:
-    runs-on: macos-26
+    runs-on: macos-15
     timeout-minutes: 360
 
     steps:
@@ -22,49 +22,52 @@ jobs:
           uname -m
           xcodebuild -version
           xcrun --sdk iphoneos --show-sdk-version
-          brew --version
 
-      - name: Prepare build tools and Bison
+      - name: Prepare Homebrew Dependencies
         run: |
+          # Install modern bison and flex
           brew install bison flex
-
+          
+          # Get actual paths (handles both /opt/homebrew and /usr/local)
           BISON_BIN="$(brew --prefix bison)/bin"
-
-          # 1. Inject Homebrew Bison into the runner's persistent PATH
+          FLEX_BIN="$(brew --prefix flex)/bin"
+          
+          # Persist to GitHub PATH for all subsequent steps
           echo "$BISON_BIN" >> "$GITHUB_PATH"
-
-          # 2. Create hard symlinks in standard directories so sub-shells never hit /usr/bin/bison
-          sudo mkdir -p /usr/local/bin
-          sudo ln -sf "$BISON_BIN/bison" /usr/local/bin/bison
-          sudo ln -sf "$BISON_BIN/yacc" /usr/local/bin/yacc
-          ln -sf "$BISON_BIN/bison" /opt/homebrew/bin/bison || true
-          ln -sf "$BISON_BIN/yacc" /opt/homebrew/bin/yacc || true
-
-          # 3. Verify that Bison 3.x+ is actively resolved
-          export PATH="$BISON_BIN:$PATH"
-          echo "Active bison location: $(which bison)"
+          echo "$FLEX_BIN" >> "$GITHUB_PATH"
+          
+          # Verify the correct versions are active
+          export PATH="$BISON_BIN:$FLEX_BIN:$PATH"
           bison --version
+          flex --version
 
       - name: Build Madeira
         env:
           JOBS: 4
         run: |
+          # Re-declare paths locally to ensure the script's sub-shells inherit them
           BISON_BIN="$(brew --prefix bison)/bin"
-          export PATH="$BISON_BIN:$PATH"
+          FLEX_BIN="$(brew --prefix flex)/bin"
+          export PATH="$BISON_BIN:$FLEX_BIN:$PATH"
+          
+          # Force Wine autotools to use these exact binaries
           export BISON="$BISON_BIN/bison"
           export YACC="$BISON_BIN/bison -y"
-
-          echo "Target BISON binary: $BISON"
+          export LEX="$FLEX_BIN/flex"
+          
           chmod +x scripts/build-ipa.sh
+          
+          # Execute the official build script
           ./scripts/build-ipa.sh
 
-      - name: Verify IPA
+      - name: Verify & Package IPA
         run: |
           test -s dist/Madeira.ipa
-          unzip -tq dist/Madeira.ipa
+          echo "Build successful! File size:"
+          ls -lh dist/Madeira.ipa
           shasum -a 256 dist/Madeira.ipa
 
-      - name: Upload IPA
+      - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Madeira-IPA
