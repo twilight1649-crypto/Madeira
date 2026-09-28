@@ -1,54 +1,42 @@
-name: Build IPA (unsigned)
+name: Build Madeira IPA
 
 on:
   workflow_dispatch:
 
-permissions:
-  contents: read
-
 jobs:
   build:
-    runs-on: macos-26
+    runs-on: macos-14
     timeout-minutes: 360
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout exact build source
+        uses: actions/checkout@v4
         with:
+          ref: ef496822ca427b4b000eaf7c78d3a570e23182e1
           submodules: recursive
-          fetch-depth: 0
+          fetch-depth: 1
 
-      - name: Show tool versions
+      - name: Select Xcode
         run: |
+          sudo xcode-select -s /Applications/Xcode.app/Contents/Developer
           xcodebuild -version
-          sw_vers
-          df -h /
+          xcrun --sdk iphoneos --show-sdk-version
 
-      - name: Bring in the build script from PR 14
+      - name: Build Madeira
         run: |
-          git config user.name ci
-          git config user.email ci@example.com
-          git fetch --no-recurse-submodules https://github.com/willfaust/Madeira.git pull/14/head:pr14
-          git diff --name-only HEAD...pr14 | tee changed.txt
-          if grep -Ev '^(scripts/|build/|BUILDING\.md$|README\.md$)' changed.txt; then
-            echo "PR 14 changes unexpected files, stopping."
-            exit 1
-          fi
-          git merge --no-edit pr14
+          chmod +x scripts/build-ipa.sh
+          JOBS=4 ./scripts/build-ipa.sh
 
-      - name: Put newer bison and flex first
+      - name: Verify IPA
         run: |
-          brew install bison flex
-          echo "$(brew --prefix bison)/bin" >> "$GITHUB_PATH"
-          echo "$(brew --prefix flex)/bin" >> "$GITHUB_PATH"
+          test -s dist/Madeira.ipa
+          unzip -tq dist/Madeira.ipa
+          shasum -a 256 dist/Madeira.ipa
 
-      - name: Build the IPA
-        env:
-          LDFLAGS: "-Wl,-undefined,dynamic_lookup"
-        run: ./scripts/build-ipa.sh
-
-      - name: Save the IPA
+      - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: Madeira-unsigned-ipa
-          path: dist/Madeira.ipa
-          if-no-files-found: error
-          retention-days: 7
+          name: Madeira-official-build
+          path: |
+            dist/Madeira.ipa
+            BUILDING.md
