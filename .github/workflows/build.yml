@@ -24,20 +24,39 @@ jobs:
           xcrun --sdk iphoneos --show-sdk-version
           brew --version
 
-      - name: Prepare Homebrew tools
+      - name: Prepare build tools and Bison
         run: |
-          brew install bison
-          export PATH="$(brew --prefix bison)/bin:$PATH"
+          brew install bison flex
 
-          echo "Using bison:"
-          which bison
+          BISON_BIN="$(brew --prefix bison)/bin"
+
+          # 1. Inject Homebrew Bison into the runner's persistent PATH
+          echo "$BISON_BIN" >> "$GITHUB_PATH"
+
+          # 2. Create hard symlinks in standard directories so sub-shells never hit /usr/bin/bison
+          sudo mkdir -p /usr/local/bin
+          sudo ln -sf "$BISON_BIN/bison" /usr/local/bin/bison
+          sudo ln -sf "$BISON_BIN/yacc" /usr/local/bin/yacc
+          ln -sf "$BISON_BIN/bison" /opt/homebrew/bin/bison || true
+          ln -sf "$BISON_BIN/yacc" /opt/homebrew/bin/yacc || true
+
+          # 3. Verify that Bison 3.x+ is actively resolved
+          export PATH="$BISON_BIN:$PATH"
+          echo "Active bison location: $(which bison)"
           bison --version
 
       - name: Build Madeira
+        env:
+          JOBS: 4
         run: |
-          export PATH="$(brew --prefix bison)/bin:$PATH"
+          BISON_BIN="$(brew --prefix bison)/bin"
+          export PATH="$BISON_BIN:$PATH"
+          export BISON="$BISON_BIN/bison"
+          export YACC="$BISON_BIN/bison -y"
+
+          echo "Target BISON binary: $BISON"
           chmod +x scripts/build-ipa.sh
-          JOBS=4 ./scripts/build-ipa.sh
+          ./scripts/build-ipa.sh
 
       - name: Verify IPA
         run: |
@@ -50,3 +69,4 @@ jobs:
         with:
           name: Madeira-IPA
           path: dist/Madeira.ipa
+          if-no-files-found: error
