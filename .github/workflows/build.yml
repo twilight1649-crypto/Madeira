@@ -41,6 +41,8 @@ jobs:
           echo "$(brew --prefix flex)/bin" >> "$GITHUB_PATH"
 
       - name: Build the IPA
+        env:
+          LDFLAGS: "-Wl,-undefined,dynamic_lookup"
         run: ./scripts/build-ipa.sh
 
       - name: Save the IPA
