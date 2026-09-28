@@ -24,8 +24,18 @@ jobs:
           xcrun --sdk iphoneos --show-sdk-version
           brew --version
 
+      - name: Prepare Homebrew tools
+        run: |
+          brew install bison
+          export PATH="$(brew --prefix bison)/bin:$PATH"
+
+          echo "Using bison:"
+          which bison
+          bison --version
+
       - name: Build Madeira
         run: |
+          export PATH="$(brew --prefix bison)/bin:$PATH"
           chmod +x scripts/build-ipa.sh
           JOBS=4 ./scripts/build-ipa.sh
 
