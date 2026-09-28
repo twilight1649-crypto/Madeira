@@ -1,47 +1,46 @@
-name: Build Madeira IPA
+name: Build IPA (unsigned)
 
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build:
-    runs-on: macos-14
-
+    runs-on: macos-26
+    timeout-minutes: 360
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
+          fetch-depth: 0
 
-      - name: Download missing tools
+      - name: Show tool versions
         run: |
-          mkdir -p toolchains
-          cd toolchains
-          curl -LO https://github.com/mstorsjo/llvm-mingw/releases/download/20260421/llvm-mingw-20260421-ucrt-macos-universal.tar.xz
-          tar -xf llvm-mingw-20260421-ucrt-macos-universal.tar.xz
+          xcodebuild -version
+          sw_vers
+          df -h /
 
-      - name: Fetch MSVC Runtime
+      - name: Bring in the build script from PR 14
         run: |
-          cd tools
-          
-      - name: Build Native Engines
-        run: |
-          for script in build/*/build.sh; do
-            bash "$script"
-          done
+          git config user.name ci
+          git config user.email ci@example.com
+          git fetch https://github.com/willfaust/Madeira.git pull/14/head:pr14
+          git diff --name-only HEAD...pr14 | tee changed.txt
+          if grep -Ev '^(scripts/|build/|BUILDING\.md$|README\.md$)' changed.txt; then
+            echo "PR 14 changes unexpected files, stopping."
+            exit 1
+          fi
+          git merge --no-edit pr14
 
-      - name: Build iOS App via Xcode
-        run: |
-          xcodebuild -project Madeira.xcodeproj -scheme Madeira -sdk iphoneos -configuration Release CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+      - name: Build the IPA
+        run: ./scripts/build-ipa.sh
 
-      - name: Package into IPA
-        run: |
-          mkdir -p Payload
-          mv build/Release-iphoneos/Madeira.app Payload/
-          zip -r Madeira.ipa Payload
-
-      - name: Upload IPA for Download
+      - name: Save the IPA
         uses: actions/upload-artifact@v4
         with:
-          name: Madeira-App
-          path: Madeira.ipa
+          name: Madeira-unsigned-ipa
+          path: dist/Madeira.ipa
+          if-no-files-found: error
+          retention-days: 7
