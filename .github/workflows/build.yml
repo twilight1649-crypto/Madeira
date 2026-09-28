@@ -1,34 +1,37 @@
 name: Build Madeira IPA
 
 on:
-  workflow_dispatch: 
+  workflow_dispatch:
 
 jobs:
   build:
-    runs-on: macos-14 
+    runs-on: macos-14
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          submodules: recursive 
+          submodules: recursive
+
+      - name: Download missing tools
+        run: |
+          mkdir -p toolchains
+          cd toolchains
+          curl -LO https://github.com/mstorsjo/llvm-mingw/releases/download/20260421/llvm-mingw-20260421-ucrt-macos-universal.tar.xz
+          tar -xf llvm-mingw-20260421-ucrt-macos-universal.tar.xz
 
       - name: Fetch MSVC Runtime
         run: |
           cd tools
-          # Note: Madeira requires you to get the MSVC runtime. 
-          # You usually do this manually via tools/fetch-vcruntime.md
-          # Depending on the repo state, you may need a script here to curl those DLLs.
           
       - name: Build Native Engines
         run: |
-          # This runs the internal build scripts for Wine, FEX, etc.
           for script in build/*/build.sh; do
             bash "$script"
           done
 
       - name: Build iOS App via Xcode
         run: |
-          # This uses the cloud Mac's Xcode to build the app
           xcodebuild -project Madeira.xcodeproj -scheme Madeira -sdk iphoneos -configuration Release CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
 
       - name: Package into IPA
