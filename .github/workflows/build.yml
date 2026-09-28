@@ -26,7 +26,7 @@ jobs:
         run: |
           git config user.name ci
           git config user.email ci@example.com
-          git fetch https://github.com/willfaust/Madeira.git pull/14/head:pr14
+          git fetch --no-recurse-submodules https://github.com/willfaust/Madeira.git pull/14/head:pr14
           git diff --name-only HEAD...pr14 | tee changed.txt
           if grep -Ev '^(scripts/|build/|BUILDING\.md$|README\.md$)' changed.txt; then
             echo "PR 14 changes unexpected files, stopping."
